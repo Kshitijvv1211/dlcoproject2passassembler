@@ -3,7 +3,7 @@ using namespace std;
 
 int main_memory[1 << 24];
 vector<string> machine_code_lines;
-int accumulator_A, accumulator_B, program_counter, stack_pointer, index, total_instructions, ExecStatus;
+int accumulator_A, accumulator_B, program_counter, stack_pointer, index, total_instructions, execution_status;
 array<int, 2> memory_change;
 vector<string> mnemonics = {"ldc", "adc", "ldl", "stl", "ldnl", "stnl", "add", "sub",
                             "shl", "shr", "adj", "a2sp", "sp2a", "call", "return", "brz", "brlz", "br", "HALT"};
@@ -14,23 +14,23 @@ void load_local(int offset) {
     accumulator_B = accumulator_A;
     accumulator_A = main_memory[stack_pointer + offset];
     memory_change = {stack_pointer + offset, 0};
-    ExecStatus = 1;
+    execution_status = 1;
 }
 void store_local(int offset) {
     memory_change = {main_memory[stack_pointer + offset], accumulator_A};
     main_memory[stack_pointer + offset] = accumulator_A;
-    ExecStatus = 2;
+    execution_status = 2;
     accumulator_A = accumulator_B;
 }
 void load_non_local(int offset) {
     accumulator_A = main_memory[accumulator_A + offset];
     memory_change = {stack_pointer + offset, 0};
-    ExecStatus = 1;
+    execution_status = 1;
 }
 void store_non_local(int offset) {
     memory_change = {main_memory[accumulator_A + offset], accumulator_B};
     main_memory[accumulator_A + offset] = accumulator_B;
-    ExecStatus = 2;
+    execution_status = 2;
 }
 void add(int unused = 0) { accumulator_A = accumulator_A + accumulator_B; }
 void subtract(int unused = 0) { accumulator_A = accumulator_B - accumulator_A; }
@@ -67,21 +67,21 @@ string decimal_to_hexadecimal_conversion(unsigned int num) {
     return hexRepresentation;
 }
 
-void loadMachineCode() {
+void load_machine_code() {
     cout << "Enter file name (e.g., machineCode.o): ";
-    string fileName;
-    getline(cin, fileName);  // Use getline to handle spaces
+    string file_name;
+    getline(cin, file_name);  // Use getline to handle spaces
 
-    ifstream inputFile(fileName, ios::binary);
-    if (!inputFile) {
-        cerr << "Error: Unable to open file " << fileName << endl;
+    ifstream input_file(file_name, ios::binary);
+    if (!input_file) {
+        cerr << "Error: Unable to open file " << file_name << endl;
         return;
     }
 
     unsigned int instruction;
     int position = 0;
 
-    while (inputFile.read(reinterpret_cast<char*>(&instruction), sizeof(instruction))) {
+    while (input_file.read(reinterpret_cast<char*>(&instruction), sizeof(instruction))) {
         if (position < sizeof(main_memory) / sizeof(main_memory[0])) {
             main_memory[position++] = instruction;
             machine_code_lines.emplace_back(decimal_to_hexadecimal_conversion(instruction));
@@ -91,8 +91,8 @@ void loadMachineCode() {
         }
     }
 
-    if (inputFile.eof()) {
-        cout << "Machine code loaded successfully from " << fileName << endl;
+    if (input_file.eof()) {
+        cout << "Machine code loaded successfully from " << file_name << endl;
     } else {
         cerr << "Error: Reading interrupted before reaching end of file." << endl;
     }
@@ -102,7 +102,7 @@ void loadMachineCode() {
 #include <iomanip>
 using namespace std;
 
-void displayWelcomeMessage() {
+void function_to_display_welcome_message() {
     cout << "Welcome to the Emulator!" << endl;
     cout << "\nAvailable Commands:\n" << endl;
 
@@ -120,7 +120,7 @@ void displayWelcomeMessage() {
 }
 
 
-void displayMemoryDump() {
+void function_to_display_memory_dump() {
     int memorySize = static_cast<int>(machine_code_lines.size());
 
     for (int i = 0; i < memorySize; i += 4) {
@@ -135,17 +135,24 @@ void displayMemoryDump() {
     }
 }
 
-void displayRegisters() {
-    cout << "A: " << decimal_to_hexadecimal_conversion(accumulator_A) << "     B: " << decimal_to_hexadecimal_conversion(accumulator_B)
-         << "     SP: " << decimal_to_hexadecimal_conversion(stack_pointer) << "     PC: " << decimal_to_hexadecimal_conversion(program_counter + 1)
-         << "     " << mnemonics[program_counter] << endl;
+void function_to_display_registers() {
+    cout << "\n======================== Emulator Registers ========================\n";
+    cout << "|   Register   |   Value (Hex)   |" << endl;
+    cout << "--------------------------------------------------------------------" << endl;
+    cout << "|     A        |   " << setw(10) << decimal_to_hexadecimal_conversion(accumulator_A) << "   |" << endl;
+    cout << "|     B        |   " << setw(10) << decimal_to_hexadecimal_conversion(accumulator_B) << "   |" << endl;
+    cout << "|     SP       |   " << setw(10) << decimal_to_hexadecimal_conversion(stack_pointer) << "   |" << endl;
+    cout << "|     PC       |   " << setw(10) << decimal_to_hexadecimal_conversion(program_counter + 1) << "   |" << endl;
+    cout << "--------------------------------------------------------------------" << endl;
+    cout << "|   Mnemonic   |   " << mnemonics[program_counter] << endl;
+    cout << "====================================================================\n";
 }
 
-void displayReadOperation() {
+void function_to_display_read_operations() {
     cout << "Reading memory[" << decimal_to_hexadecimal_conversion(program_counter) << "], has value: " << decimal_to_hexadecimal_conversion(memory_change[0]) << endl;
 }
 
-void displayWriteOperation() {
+void function_to_display_write_operations() {
     cout << "Writing memory[" << decimal_to_hexadecimal_conversion(program_counter) << "], from " << decimal_to_hexadecimal_conversion(memory_change[0])
          << " to " << decimal_to_hexadecimal_conversion(memory_change[1]) << endl;
 }
@@ -154,61 +161,60 @@ void displayWriteOperation() {
 void displayInstructionSet() {
     cout << "Instruction Set:\n" << endl;
 
-    cout << left << setw(10) << "Sr. No."
+    cout << left << setw(7) << "Sr. No."
          << setw(18) << "| OpMachineCode"
-         << setw(20) << "| Mnemonic"
-         << "Operand" << endl;
+         << setw(20) << "| Mnemonic Operand" << endl;
 
     cout << "----------------------------------------------------------" << endl;
 
-    cout << left << setw(10) << "0" << setw(18) << "| ldc"   << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "1" << setw(18) << "| adc"   << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "2" << setw(18) << "| ldl"   << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "3" << setw(18) << "| stl"   << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "4" << setw(18) << "| ldnl"  << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "5" << setw(18) << "| stnl"  << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "6" << setw(18) << "| add"   << setw(20) << "|" << endl;
-    cout << left << setw(10) << "7" << setw(18) << "| sub"   << setw(20) << "|" << endl;
-    cout << left << setw(10) << "9" << setw(18) << "| shr"   << setw(20) << "|" << endl;
-    cout << left << setw(10) << "10" << setw(18) << "| adj"   << setw(20) << "| value" << endl;
-    cout << left << setw(10) << "11" << setw(18) << "| a2sp"  << setw(20) << "|" << endl;
-    cout << left << setw(10) << "12" << setw(18) << "| sp2a"  << setw(20) << "|" << endl;
-    cout << left << setw(10) << "13" << setw(18) << "| call"  << setw(20) << "| offset" << endl;
-    cout << left << setw(10) << "14" << setw(18) << "| return" << setw(20) << "|" << endl;
-    cout << left << setw(10) << "15" << setw(18) << "| brz"   << setw(20) << "| offset" << endl;
-    cout << left << setw(10) << "16" << setw(18) << "| brlz"  << setw(20) << "| offset" << endl;
-    cout << left << setw(10) << "17" << setw(18) << "| br"    << setw(20) << "| offset" << endl;
-    cout << left << setw(10) << "18" << setw(18) << "| HALT"  << setw(20) << "|" << endl;
+    cout << left << setw(7) << "     0." << setw(18) << "|    ldc"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     1." << setw(18) << "|    adc"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     2." << setw(18) << "|    ldl"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     3." << setw(18) << "|    stl"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     4." << setw(18) << "|    ldnl"  << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     5." << setw(18) << "|    stnl"  << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     6." << setw(18) << "|    add"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "     7." << setw(18) << "|    sub"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "     9." << setw(18) << "|     shr"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    10." << setw(18) << "|   adj"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "    11." << setw(18) << "|    a2sp"  << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    12." << setw(18) << "|   sp2a"  << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    13." << setw(18) << "|   call"  << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    14." << setw(18) << "|   return" << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    15." << setw(18) << "|   brz"   << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    16." << setw(18) << "|    brlz"  << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    17." << setw(18) << "|    br"    << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    18." << setw(18) << "|    HALT"  << setw(20) << "|" << endl;
 }
 
-bool executeInstructions(int operation, int maxExecutions = (1 << 25)) {
-    while (maxExecutions-- && program_counter < machine_code_lines.size()) {
+bool function_to_execute_instructions(int operation, int maximum_executions = (1 << 25)) {
+    while (maximum_executions-- && program_counter < machine_code_lines.size()) {
         total_instructions++;
         if (program_counter >= machine_code_lines.size() || total_instructions > (int)3e7) {
             cout << "Segmentation Fault" << endl;
             return false;
         }
-        string currentInstruction = machine_code_lines[program_counter];
-        int opcode = stoi(currentInstruction.substr(6, 2), 0, 16);
+        string current_instruction = machine_code_lines[program_counter];
+        int opcode = stoi(current_instruction.substr(6, 2), 0, 16);
         if (opcode == 18) {
             cout << "HALT found" << endl;
             cout << total_instructions << " statements were executed in total" << endl;
             return true;
         }
-        int operand = stoi(currentInstruction.substr(0, 6), 0, 16);
+        int operand = stoi(current_instruction.substr(0, 6), 0, 16);
         if (operand >= (1 << 23)) {
             operand -= (1 << 24);
         }
-        if (maxExecutions == 0)
-            displayRegisters();
+        if (maximum_executions == 0)
+            function_to_display_registers();
         (instructionFunctions[opcode])(operand);
-        if (operation == 1 && ExecStatus == 1) {
-            displayReadOperation();
-            ExecStatus = 0;
+        if (operation == 1 && execution_status == 1) {
+            function_to_display_read_operations();
+            execution_status = 0;
         }
-        else if (operation == 2 && ExecStatus == 2) {
-            displayWriteOperation();
-            ExecStatus = 0;
+        else if (operation == 2 && execution_status == 2) {
+            function_to_display_write_operations();
+            execution_status = 0;
         }
         program_counter++;
         index++;
@@ -216,45 +222,51 @@ bool executeInstructions(int operation, int maxExecutions = (1 << 25)) {
     return true;
 }
 
-bool startEmulator() {
+// The main function to start the emulator
+bool function_to_start_emulator() {
     cout << "Enter command or 0 to exit:" << endl;
     string command;
     cin >> command;
+
+    // Map of commands to their respective functions
+    map<string, function<void()>> commandMap = {
+        {"-dump", function_to_display_memory_dump},
+        {"-reg", function_to_display_registers},
+        {"-isa", displayInstructionSet}
+    };
+
+    map<string, function<bool()>> commandMapWithReturn = {
+        {"-t", []() { return function_to_execute_instructions(0, 1); }},
+        {"-run", []() { return function_to_execute_instructions(0); }},
+        {"-read", []() { return function_to_execute_instructions(1); }},
+        {"-write", []() { return function_to_execute_instructions(2); }}
+    };
+
+    // Exit condition
     if (command == "0") {
         exit(0);
     }
-    else if (command == "-dump") {
-        displayMemoryDump();
+
+    // Execute commands that don’t return a boolean
+    if (commandMap.count(command)) {
+        commandMap[command]();
+        return true;
     }
-    else if (command == "-reg") {
-        displayRegisters();
-    }
-    else if (command == "-t") {
-        return executeInstructions(0, 1);
-    }
-    else if (command == "-run") {
-        return executeInstructions(0);
-    }
-    else if (command == "-isa") {
-        displayInstructionSet();
-    }
-    else if (command == "-read") {
-        return executeInstructions(1);
-    }
-    else if (command == "-write") {
-        return executeInstructions(2);
-    }
-    else {
+    // Execute commands that return a boolean
+    else if (commandMapWithReturn.count(command)) {
+        return commandMapWithReturn[command]();
+    } else {
         cout << "Enter a valid command" << endl;
     }
+
     return true;
 }
 
 int main() {
-    loadMachineCode();
-    displayWelcomeMessage();
+    load_machine_code();
+    function_to_display_welcome_message();
     while (true) {
-       startEmulator();
+       function_to_start_emulator();
     }
     return 0;
 }
