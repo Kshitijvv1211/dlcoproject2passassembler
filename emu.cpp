@@ -1,218 +1,272 @@
 #include <bits/stdc++.h>
 using namespace std;
 
-int MainMemory[1 << 24];
-vector<string> MachineCodeLines;
-int AccumulatorA, AccumulatorB, ProgramCounter, StackPointer, Index, TotalInstructions, ExecStatus;
-array<int, 2> MemoryChange;
-vector<string> Mnemonics = {"ldc", "adc", "ldl", "stl", "ldnl", "stnl", "add", "sub",
+int main_memory[1 << 24];
+vector<string> machine_code_lines;
+int accumulator_A, accumulator_B, program_counter, stack_pointer, index, total_instructions, execution_status;
+array<int, 2> memory_change;
+vector<string> mnemonics = {"ldc", "adc", "ldl", "stl", "ldnl", "stnl", "add", "sub",
                             "shl", "shr", "adj", "a2sp", "sp2a", "call", "return", "brz", "brlz", "br", "HALT"};
 
-void loadConstant(int value) { AccumulatorB = AccumulatorA; AccumulatorA = value; }
-void addConstant(int value) { AccumulatorA += value; }
-void loadLocal(int offset) {
-    AccumulatorB = AccumulatorA;
-    AccumulatorA = MainMemory[StackPointer + offset];
-    MemoryChange = {StackPointer + offset, 0};
-    ExecStatus = 1;
+void load_constant(int value) { accumulator_B = accumulator_A; accumulator_A = value; }
+void add_constant(int value) { accumulator_A = accumulator_A + value; }
+void load_local(int offset) {
+    accumulator_B = accumulator_A;
+    accumulator_A = main_memory[stack_pointer + offset];
+    memory_change = {stack_pointer + offset, 0};
+    execution_status = 1;
 }
-void storeLocal(int offset) {
-    MemoryChange = {MainMemory[StackPointer + offset], AccumulatorA};
-    MainMemory[StackPointer + offset] = AccumulatorA;
-    ExecStatus = 2;
-    AccumulatorA = AccumulatorB;
+void store_local(int offset) {
+    memory_change = {main_memory[stack_pointer + offset], accumulator_A};
+    main_memory[stack_pointer + offset] = accumulator_A;
+    execution_status = 2;
+    accumulator_A = accumulator_B;
 }
-void loadNonLocal(int offset) {
-    AccumulatorA = MainMemory[AccumulatorA + offset];
-    MemoryChange = {StackPointer + offset, 0};
-    ExecStatus = 1;
+void load_non_local(int offset) {
+    accumulator_A = main_memory[accumulator_A + offset];
+    memory_change = {stack_pointer + offset, 0};
+    execution_status = 1;
 }
-void storeNonLocal(int offset) {
-    MemoryChange = {MainMemory[AccumulatorA + offset], AccumulatorB};
-    MainMemory[AccumulatorA + offset] = AccumulatorB;
-    ExecStatus = 2;
+void store_non_local(int offset) {
+    memory_change = {main_memory[accumulator_A + offset], accumulator_B};
+    main_memory[accumulator_A + offset] = accumulator_B;
+    execution_status = 2;
 }
-void add(int unused = 0) { AccumulatorA += AccumulatorB; }
-void subtract(int unused = 0) { AccumulatorA = AccumulatorB - AccumulatorA; }
-void shiftLeft(int unused = 0) { AccumulatorA = AccumulatorB << AccumulatorA; }
-void shiftRight(int unused = 0) { AccumulatorA = AccumulatorB >> AccumulatorA; }
-void adjustSP(int value) { StackPointer += value; }
-void accumulatorToSP(int unused = 0) { StackPointer = AccumulatorA; AccumulatorA = AccumulatorB; }
-void spToAccumulator(int unused = 0) { AccumulatorB = AccumulatorA; AccumulatorA = StackPointer; }
-void callProcedure(int offset) {
-    AccumulatorB = AccumulatorA;
-    AccumulatorA = ProgramCounter;
-    ProgramCounter += offset;
+void add(int unused = 0) { accumulator_A = accumulator_A + accumulator_B; }
+void subtract(int unused = 0) { accumulator_A = accumulator_B - accumulator_A; }
+void shift_left(int unused = 0) { accumulator_A = accumulator_B << accumulator_A; }
+void shift_right(int unused = 0) { accumulator_A = accumulator_B >> accumulator_A; }
+void adjust_stack_pointer(int value) { stack_pointer = stack_pointer + value; }
+void accumulatorToSP(int unused = 0) { stack_pointer = accumulator_A; accumulator_A = accumulator_B; }
+void spToAccumulator(int unused = 0) { accumulator_B = accumulator_A; accumulator_A = stack_pointer; }
+void call_procedure(int offset) {
+    accumulator_B = accumulator_A;
+    accumulator_A = program_counter;
+    program_counter = program_counter + offset;
 }
-void returnProcedure(int unused = 0) { ProgramCounter = AccumulatorA; AccumulatorA = AccumulatorB; }
-void branchIfZero(int offset) { if (AccumulatorA == 0) ProgramCounter += offset; }
-void branchIfLessZero(int offset) { if (AccumulatorA < 0) ProgramCounter += offset; }
-void branch(int offset) { ProgramCounter += offset; }
+void returnProcedure(int unused = 0) { program_counter = accumulator_A; accumulator_A = accumulator_B; }
+void branchIfZero(int offset) { if (accumulator_A == 0) program_counter = program_counter + offset; }
+void branchIfLessZero(int offset) { if (accumulator_A < 0) program_counter = program_counter + offset; }
+void branch(int offset) { program_counter = program_counter + offset; }
 
-void (*instructionFunctions[])(int) = {loadConstant, addConstant, loadLocal, storeLocal, loadNonLocal,
-                                       storeNonLocal, add, subtract, shiftLeft, shiftRight,
-                                       adjustSP, accumulatorToSP, spToAccumulator, callProcedure,
+void (*instructionFunctions[])(int) = {load_constant, add_constant, load_local, store_local, load_non_local,
+                                       store_non_local, add, subtract, shift_left, shift_right,
+                                       adjust_stack_pointer, accumulatorToSP, spToAccumulator, call_procedure,
                                        returnProcedure, branchIfZero, branchIfLessZero, branch};
 
-string decimalToHex(unsigned int num) {
-    stringstream ss;
-    ss << hex << num;
-    string hexRepresentation = ss.str();
-    reverse(hexRepresentation.begin(), hexRepresentation.end());
-    while ((int)hexRepresentation.size() < 8) {
-        hexRepresentation += '0';
+
+string decimal_to_hexadecimal_conversion(unsigned int num) {
+    const char hexDigits[] = "0123456789abcdef";
+    string hexRepresentation(8, '0');  // Start with a string of 8 '0's
+
+    for (int i = 7; i >= 0; --i) {           // Fill the string from right to left
+        hexRepresentation[i] = hexDigits[num % 16];  // Get the last hex digit
+        num /= 16;                          // Move to the next hex digit
     }
-    reverse(hexRepresentation.begin(), hexRepresentation.end());
+
     return hexRepresentation;
 }
 
-void loadMachineCode() {
-    string fileName;
-    cout << "Enter file name: Ex: machineCode.o" << endl;
-    cin >> fileName;
-    ifstream inputFile(fileName, ios::in | ios::binary);
+void load_machine_code() {
+    cout << "Enter file name (e.g., machineCode.o): ";
+    string file_name;
+    getline(cin, file_name);  // Use getline to handle spaces
+
+    ifstream input_file(file_name, ios::binary);
+    if (!input_file) {
+        cerr << "Error: Unable to open file " << file_name << endl;
+        return;
+    }
+
     unsigned int instruction;
-    int pos = 0;
-    while (inputFile.read((char*)&instruction, sizeof(int))) {
-        MainMemory[pos++] = instruction;
-        MachineCodeLines.push_back(decimalToHex(instruction));
+    int position = 0;
+
+    while (input_file.read(reinterpret_cast<char*>(&instruction), sizeof(instruction))) {
+        if (position < sizeof(main_memory) / sizeof(main_memory[0])) {
+            main_memory[position++] = instruction;
+            machine_code_lines.emplace_back(decimal_to_hexadecimal_conversion(instruction));
+        } else {
+            cerr << "Error: Exceeded memory limits." << endl;
+            break;
+        }
+    }
+
+    if (input_file.eof()) {
+        cout << "Machine code loaded successfully from " << file_name << endl;
+    } else {
+        cerr << "Error: Reading interrupted before reaching end of file." << endl;
     }
 }
 
-void displayWelcomeMessage() {
-    cout << "Welcome to Emulator" << endl;
-    cout << "Following functions are implemented:" << endl;
-    cout << "1. Memory Dump using instruction: -dump" << endl;
-    cout << "2. Emulate code one line at time: using instruction: -t" << endl;
-    cout << "3. Emulate till the end using -run" << endl;
-    cout << "4. Show registers and SP values: -reg" << endl;
-    cout << "5. Show instruction set using: -isa" << endl;
-    cout << "6. Read operations using -read" << endl;
-    cout << "7. Write operations using -write" << endl;
+#include <iostream>
+#include <iomanip>
+using namespace std;
+
+void function_to_display_welcome_message() {
+    cout << "Welcome to the Emulator!" << endl;
+    cout << "\nAvailable Commands:\n" << endl;
+
+    cout << left << setw(7) << "Sr.No." << setw(10) << "Command" << setw(40) << "Description" << endl;
+    cout << "---------------------------------------------------------------" << endl;
+    cout << left << setw(7) << "1." << setw(10) << "-dump"    << setw(40) << "Display a memory dump" << endl;
+    cout << left << setw(7) << "2." << setw(10) << "-t"       << setw(40) << "Step through code one line at a time" << endl;
+    cout << left << setw(7) << "3." << setw(10) << "-run"     << setw(40) << "Run the code until completion" << endl;
+    cout << left << setw(7) << "4." << setw(10) << "-reg"     << setw(40) << "Display register and stack pointer (SP) values" << endl;
+    cout << left << setw(7) << "5." << setw(10) << "-isa"     << setw(40) << "Show the instruction set" << endl;
+    cout << left << setw(7) << "6." << setw(10) << "-read"    << setw(40) << "Read from memory" << endl;
+    cout << left << setw(7) << "7." << setw(10) << "-write"   << setw(40) << "Write to memory" << endl;
+
+    cout << "\nEnter a command to proceed." << endl;
 }
 
-void displayMemoryDump() {
-    for (int i = 0; i < (int)MachineCodeLines.size(); i++) {
-        cout << decimalToHex(i) << " ";
-        for (int j = i; j < min(i + 4, (int)MachineCodeLines.size()); j++) {
-            cout << decimalToHex(MainMemory[j]) << " ";
+
+void function_to_display_memory_dump() {
+    int memorySize = static_cast<int>(machine_code_lines.size());
+
+    for (int i = 0; i < memorySize; i += 4) {
+        cout << decimal_to_hexadecimal_conversion(i) << ": ";  // Print memory address in hex
+
+        // Display up to 4 consecutive memory contents at this address
+        for (int j = i; j < i + 4 && j < memorySize; j++) {
+            cout << machine_code_lines[j] << " ";
         }
-        i += 3;
+        
         cout << endl;
     }
 }
 
-void displayRegisters() {
-    cout << "A: " << decimalToHex(AccumulatorA) << "     B: " << decimalToHex(AccumulatorB)
-         << "     SP: " << decimalToHex(StackPointer) << "     PC: " << decimalToHex(ProgramCounter + 1)
-         << "     " << Mnemonics[ProgramCounter] << endl;
+void function_to_display_registers() {
+    cout << "\n======================== Emulator Registers ========================\n";
+    cout << "|   Register   |   Value (Hex)   |" << endl;
+    cout << "--------------------------------------------------------------------" << endl;
+    cout << "|     A        |   " << setw(10) << decimal_to_hexadecimal_conversion(accumulator_A) << "   |" << endl;
+    cout << "|     B        |   " << setw(10) << decimal_to_hexadecimal_conversion(accumulator_B) << "   |" << endl;
+    cout << "|     SP       |   " << setw(10) << decimal_to_hexadecimal_conversion(stack_pointer) << "   |" << endl;
+    cout << "|     PC       |   " << setw(10) << decimal_to_hexadecimal_conversion(program_counter + 1) << "   |" << endl;
+    cout << "--------------------------------------------------------------------" << endl;
+    cout << "|   Mnemonic   |   " << mnemonics[program_counter] << endl;
+    cout << "====================================================================\n";
 }
 
-void displayReadOperation() {
-    cout << "Reading memory[" << decimalToHex(ProgramCounter) << "], has value: " << decimalToHex(MemoryChange[0]) << endl;
+void function_to_display_read_operations() {
+    cout << "Reading memory[" << decimal_to_hexadecimal_conversion(program_counter) << "], has value: " << decimal_to_hexadecimal_conversion(memory_change[0]) << endl;
 }
 
-void displayWriteOperation() {
-    cout << "Writing memory[" << decimalToHex(ProgramCounter) << "], from " << decimalToHex(MemoryChange[0])
-         << " to " << decimalToHex(MemoryChange[1]) << endl;
+void function_to_display_write_operations() {
+    cout << "Writing memory[" << decimal_to_hexadecimal_conversion(program_counter) << "], from " << decimal_to_hexadecimal_conversion(memory_change[0])
+         << " to " << decimal_to_hexadecimal_conversion(memory_change[1]) << endl;
 }
+
 
 void displayInstructionSet() {
-    cout << "OpMachineCode Mnemonic Operand" << '\n';
-    cout << "0      ldc      value " << endl;
-    cout << "1      adc      value " << endl;
-    cout << "2      ldl      value " << endl;
-    cout << "3      stl      value " << endl;
-    cout << "4      ldnl     value " << endl;
-    cout << "5      stnl     value " << endl;
-    cout << "6      add            " << endl;
-    cout << "7      sub            " << endl;
-    cout << "9      shr            " << endl;
-    cout << "10     adj      value " << endl;
-    cout << "11     a2sp           " << endl;
-    cout << "12     sp2a           " << endl;
-    cout << "13     call     offset" << endl;
-    cout << "14     return         " << endl;
-    cout << "15     brz      offset" << endl;
-    cout << "16     brlz     offset" << endl;
-    cout << "17     br       offset" << endl;
-    cout << "18     HALT           " << endl;
+    cout << "Instruction Set:\n" << endl;
+
+    cout << left << setw(7) << "Sr. No."
+         << setw(18) << "| OpMachineCode"
+         << setw(20) << "| Mnemonic Operand" << endl;
+
+    cout << "----------------------------------------------------------" << endl;
+
+    cout << left << setw(7) << "     0." << setw(18) << "|    ldc"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     1." << setw(18) << "|    adc"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     2." << setw(18) << "|    ldl"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     3." << setw(18) << "|    stl"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     4." << setw(18) << "|    ldnl"  << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     5." << setw(18) << "|    stnl"  << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "     6." << setw(18) << "|    add"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "     7." << setw(18) << "|    sub"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "     9." << setw(18) << "|     shr"   << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    10." << setw(18) << "|   adj"   << setw(20) << "| value" << endl;
+    cout << left << setw(7) << "    11." << setw(18) << "|    a2sp"  << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    12." << setw(18) << "|   sp2a"  << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    13." << setw(18) << "|   call"  << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    14." << setw(18) << "|   return" << setw(20) << "|" << endl;
+    cout << left << setw(7) << "    15." << setw(18) << "|   brz"   << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    16." << setw(18) << "|    brlz"  << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    17." << setw(18) << "|    br"    << setw(20) << "| offset" << endl;
+    cout << left << setw(7) << "    18." << setw(18) << "|    HALT"  << setw(20) << "|" << endl;
 }
 
-bool executeInstructions(int operation, int maxExecutions = (1 << 25)) {
-    while (maxExecutions-- && ProgramCounter < MachineCodeLines.size()) {
-        TotalInstructions++;
-        if (ProgramCounter >= MachineCodeLines.size() || TotalInstructions > (int)3e7) {
+bool function_to_execute_instructions(int operation, int maximum_executions = (1 << 25)) {
+    while (maximum_executions-- && program_counter < machine_code_lines.size()) {
+        total_instructions++;
+        if (program_counter >= machine_code_lines.size() || total_instructions > (int)3e7) {
             cout << "Segmentation Fault" << endl;
             return false;
         }
-        string currentInstruction = MachineCodeLines[ProgramCounter];
-        int opcode = stoi(currentInstruction.substr(6, 2), 0, 16);
+        string current_instruction = machine_code_lines[program_counter];
+        int opcode = stoi(current_instruction.substr(6, 2), 0, 16);
         if (opcode == 18) {
             cout << "HALT found" << endl;
-            cout << TotalInstructions << " statements were executed in total" << endl;
+            cout << total_instructions << " statements were executed in total" << endl;
             return true;
         }
-        int operand = stoi(currentInstruction.substr(0, 6), 0, 16);
+        int operand = stoi(current_instruction.substr(0, 6), 0, 16);
         if (operand >= (1 << 23)) {
             operand -= (1 << 24);
         }
-        if (maxExecutions == 0)
-            displayRegisters();
+        if (maximum_executions == 0)
+            function_to_display_registers();
         (instructionFunctions[opcode])(operand);
-        if (operation == 1 && ExecStatus == 1) {
-            displayReadOperation();
-            ExecStatus = 0;
+        if (operation == 1 && execution_status == 1) {
+            function_to_display_read_operations();
+            execution_status = 0;
         }
-        else if (operation == 2 && ExecStatus == 2) {
-            displayWriteOperation();
-            ExecStatus = 0;
+        else if (operation == 2 && execution_status == 2) {
+            function_to_display_write_operations();
+            execution_status = 0;
         }
-        ProgramCounter++;
-        Index++;
+        program_counter++;
+        index++;
     }
     return true;
 }
 
-bool startEmulator() {
+// The main function to start the emulator
+bool function_to_start_emulator() {
     cout << "Enter command or 0 to exit:" << endl;
     string command;
     cin >> command;
+
+    // Map of commands to their respective functions
+    map<string, function<void()>> commandMap = {
+        {"-dump", function_to_display_memory_dump},
+        {"-reg", function_to_display_registers},
+        {"-isa", displayInstructionSet}
+    };
+
+    map<string, function<bool()>> commandMapWithReturn = {
+        {"-t", []() { return function_to_execute_instructions(0, 1); }},
+        {"-run", []() { return function_to_execute_instructions(0); }},
+        {"-read", []() { return function_to_execute_instructions(1); }},
+        {"-write", []() { return function_to_execute_instructions(2); }}
+    };
+
+    // Exit condition
     if (command == "0") {
         exit(0);
     }
-    else if (command == "-dump") {
-        displayMemoryDump();
+
+    // Execute commands that don’t return a boolean
+    if (commandMap.count(command)) {
+        commandMap[command]();
+        return true;
     }
-    else if (command == "-reg") {
-        displayRegisters();
-    }
-    else if (command == "-t") {
-        return executeInstructions(0, 1);
-    }
-    else if (command == "-run") {
-        return executeInstructions(0);
-    }
-    else if (command == "-isa") {
-        displayInstructionSet();
-    }
-    else if (command == "-read") {
-        return executeInstructions(1);
-    }
-    else if (command == "-write") {
-        return executeInstructions(2);
-    }
-    else {
+    // Execute commands that return a boolean
+    else if (commandMapWithReturn.count(command)) {
+        return commandMapWithReturn[command]();
+    } else {
         cout << "Enter a valid command" << endl;
     }
+
     return true;
 }
 
 int main() {
-    loadMachineCode();
-    displayWelcomeMessage();
+    load_machine_code();
+    function_to_display_welcome_message();
     while (true) {
-       startEmulator();
+       function_to_start_emulator();
     }
     return 0;
 }
